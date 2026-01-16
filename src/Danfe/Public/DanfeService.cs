@@ -4,16 +4,16 @@ using System.Xml.Serialization;
 
 namespace Direction.NFSe.Danfe;
 
-public sealed class DanfeService
+public sealed class DanfeService : IDanfeService
 {
     private readonly DanfeHtmlRenderer _renderer;
     private readonly DanfePdfGenerator _pdf;
 
-    public DanfeService(DanfeOptions? options = null, NReco.PdfGenerator.HtmlToPdfConverter? converter = null)
+    public DanfeService(DanfeOptions? options = null)
     {
         options ??= new DanfeOptions();
         _renderer = new DanfeHtmlRenderer(options);
-        _pdf = new DanfePdfGenerator(converter);
+        _pdf = new DanfePdfGenerator();
     }
 
     public DanfeResult Generate(NFSeSchema nfse, DanfeEnvironment environment, bool isCancelled = false)
