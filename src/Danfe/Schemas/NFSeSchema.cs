@@ -19,7 +19,7 @@ namespace Direction.NFSe.Danfe
         public string? Id { get; set; }
         public string? xLocEmi { get; set; }
         public string? xLocPrestacao { get; set; }
-        public int nNFSe { get; set; }
+        public string? nNFSe { get; set; }
         public string? cLocIncid { get; set; }
         public string? xLocIncid { get; set; }
         public string? xTribNac { get; set; }
@@ -101,7 +101,7 @@ namespace Direction.NFSe.Danfe
         public string? dhEmi { get; set; }
         public string? verAplic { get; set; }
         public int serie { get; set; }
-        public int nDPS { get; set; }
+        public string nDPS { get; set; } = "0";
         public string? dCompet { get; set; }
         public int tpEmit { get; set; }
         public int? cMotivoEmisTI { get; set; }
@@ -338,10 +338,7 @@ namespace Direction.NFSe.Danfe
         [XmlArray("documentos")]
         public List<Documento>? documentos { get; set; }
 
-        public bool ShouldSerializedocumentos()
-        {
-            return documentos != null && documentos.Count > 0;
-        }
+        public bool ShouldSerializedocumentos() => documentos != null && documentos.Count > 0;
     }
 
     public class Valores
@@ -386,10 +383,7 @@ namespace Direction.NFSe.Danfe
         public decimal pAliq { get; set; }
 
         // Você já tinha essa regra; mantida.
-        public bool ShouldSerializepAliq()
-        {
-            return pAliq != 0;
-        }
+        public bool ShouldSerializepAliq() => pAliq != 0;
 
         public string? cPaisResult { get; set; }
         public int? tpImunidade { get; set; }
@@ -453,10 +447,9 @@ namespace Direction.NFSe.Danfe
         public VTotTrib? vTotTrib { get; set; }
         public PTotTrib? pTotTrib { get; set; }
         public int? indTotTrib { get; set; }
-        public decimal pTotTribSN { get; set; }
-
-        // ShouldSerialize para INT?
         public bool ShouldSerializeindTotTrib() => indTotTrib.HasValue;
+        public decimal pTotTribSN { get; set; }
+        public bool ShouldSerializepTotTribSN() => pTotTribSN != 0;
     }
 
     public class IBSCBS

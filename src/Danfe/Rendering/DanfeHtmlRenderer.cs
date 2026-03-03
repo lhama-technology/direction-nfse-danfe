@@ -46,8 +46,8 @@ public sealed class DanfeHtmlRenderer
         if (infDps == null) throw new ArgumentException("NFSe.infNFSe.DPS.InfDPS não pode ser nulo", nameof(nfse));
         if (string.IsNullOrWhiteSpace(inf.Id)) throw new ArgumentException("NFSe.infNFSe.Id não pode ser nulo/vazio", nameof(nfse));
 
-        string numeroNfse = inf.nNFSe.ToString();
-        string numeroDps = infDps.nDPS.ToString();
+        string numeroNfse = inf.nNFSe ?? "";
+        string numeroDps = infDps.nDPS;
         string serieDps = infDps.serie.ToString();
 
         DateTime? competencia = Helper.TryParseDate(infDps.dCompet);
@@ -183,6 +183,9 @@ public sealed class DanfeHtmlRenderer
               </div>"
             : string.Empty;
 
+        bool hasTomador = infDps.toma != null;
+        bool hasIntermediario = infDps.interm != null;
+
         // Monta mapa de placeholders (agora com warnings)
         var map = new Dictionary<string, string>
         {
@@ -191,7 +194,7 @@ public sealed class DanfeHtmlRenderer
             // Fonts
             ["{{FONT_FAMILY}}"] = _options.FontFamily ?? "Verdana, Helvetica, sans-serif;",
             ["{{FONT_SIZE}}"] = _options.FontSize ?? "12px;",
-            ["{{FONT_SIZE_HEADER}}"] = _options.FontSize ?? "14px;",
+            ["{{FONT_SIZE_HEADER}}"] = _options.FontSize ?? "13px;",
             ["{{FONT_SIZE_QRCODE}}"] = _options.FontSize ?? "11px;",
             // Logos
             ["{{NFSE_LOGO}}"] = logoNfse ?? TransparentPixelBase64,
@@ -227,16 +230,9 @@ public sealed class DanfeHtmlRenderer
             ["{{PREST_SIMPLES}}"] = GetDescricaoPrestadorSimples(infDps.prest?.regTrib?.opSimpNac),
             ["{{PREST_REGIME_SN}}"] = GetDescricaoRegimeSimples(infDps.prest?.regTrib?.regApTribSN),
 
-            // Tomador
-            ["{{TOMA_CNPJ}}"] = !string.IsNullOrEmpty(infDps.toma?.CPF) ? DanfeFallback.OrDash(Helper.FormatCpf(infDps.toma?.CPF), warnings, fieldName: "CNPJ Tomador", path: "infNFSe.DPS.InfDPS.toma.CPF")
-                : DanfeFallback.OrDash(Helper.FormatCnpj(infDps.toma?.CNPJ), warnings, "CNPJ Tomador", "infNFSe.DPS.InfDPS.toma.CNPJ"),
-            ["{{TOMA_IM}}"] = DanfeFallback.OrDash(infDps.toma?.IM),
-            ["{{TOMA_RAZAO}}"] = DanfeFallback.OrDash(infDps.toma?.xNome, warnings, "xNome Tomador", "infNFSe.DPS.InfDPS.toma.xNome"),
-            ["{{TOMA_ENDERECO}}"] = DanfeFallback.OrDash(Helper.BuildEndereco(infDps.toma?.end), warnings, "Endereço Tomador", "infNFSe.DPS.InfDPS.toma.end"),
-            ["{{TOMA_CEP}}"] = DanfeFallback.OrDash(Helper.FormatCep(infDps.toma?.end?.endNac?.CEP), warnings, "CEP Tomador", "infNFSe.DPS.InfDPS.toma.end.endNac.CEP"),
-            ["{{TOMA_CMUN}}"] = ResolveMunicipioNomeComUf(infDps.toma?.end?.endNac?.cMun, warnings, "infNFSe.DPS.InfDPS.toma.end.endNac.cMun"),
-            ["{{TOMA_EMAIL}}"] = DanfeFallback.OrDash(infDps.toma?.email, warnings, "Email Tomador", "infNFSe.DPS.InfDPS.toma.email"),
-            ["{{TOMA_FONE}}"] = DanfeFallback.OrDash(Helper.FormatTelefone(infDps.toma?.fone), warnings, "Fone Tomador", "infNFSe.DPS.InfDPS.toma.fone"),
+            // Intermediário é incluso condicionalmente mais abaixo
+
+            // Tomador é incluso condicionalmente mais abaixo
 
             // Serviço
             ["{{SERV_CTRIBNAC}}"] = DanfeFallback.OrDash(descricaoTributoNacional, warnings, "Descrição Tributo Nacional", "infNFSe.DPS.InfDPS.serv.cServ.cTribNac | infNFSe.xTribNac").Limit(80),
@@ -283,14 +279,24 @@ public sealed class DanfeHtmlRenderer
             ["{{FED_RETIDOS}}"] = vTotalRetFed == 0M ? "-" : vTotalRetFed.ToString("C", ptBR),
             ["{{PISCOFINS_RET}}"] = vRetPisCofins != 0 ? vRetPisCofins.ToString("C", ptBR) : "-",
 
-            // Totais tributos
-            ["{{TOT_FED}}"] = DanfeFallback.OrDash(infDps.valores?.trib?.totTrib?.pTotTrib?.pTotTribFed.ToString(CultureInfo.InvariantCulture)),
-            ["{{TOT_EST}}"] = DanfeFallback.OrDash(infDps.valores?.trib?.totTrib?.pTotTrib?.pTotTribEst.ToString(CultureInfo.InvariantCulture)),
-            ["{{TOT_MUN}}"] = DanfeFallback.OrDash(infDps.valores?.trib?.totTrib?.pTotTrib?.pTotTribMun.ToString(CultureInfo.InvariantCulture)),
+            // Totais tributos é inserido condicionalmente mais abaixo
 
             // Inf complementares
             ["{{INF_COMPLEMENTARES}}"] = Helper.BuildInfComplementares(infDps.serv, infDps.subst)
         };
+        // Tomador (condicional)
+        foreach (var kv in BuildTomadorMap(infDps, warnings))
+            map[kv.Key] = kv.Value;
+
+        // Intermediário (condicional)
+        foreach (var kv in BuildIntermediarioMap(infDps, warnings))
+            map[kv.Key] = kv.Value;
+
+        // Totais tributos (condicional)
+        foreach (var kv in BuildTotaisTributosMap(infDps, ptBR, warnings))
+            map[kv.Key] = kv.Value;
+
+        template = Helper.ApplyConditionalSections(template, hasTomador, hasIntermediario);
 
         // Aplica os replaces
         foreach (var kv in map)
@@ -317,7 +323,150 @@ public sealed class DanfeHtmlRenderer
 
         return (template, warnings.Warnings);
     }
+    private Dictionary<string, string> BuildTomadorMap(InfDPS infDps, DanfeWarningCollector warnings)
+    {
+        if (infDps.toma == null)
+            return new Dictionary<string, string>();
 
+        return new Dictionary<string, string>
+        {
+            ["{{TOMA_CNPJ}}"] =
+                !string.IsNullOrEmpty(infDps.toma.CPF)
+                    ? DanfeFallback.OrDash(
+                        Helper.FormatCpf(infDps.toma.CPF),
+                        warnings,
+                        "CNPJ Tomador",
+                        "infNFSe.DPS.InfDPS.toma.CPF")
+                    : DanfeFallback.OrDash(
+                        Helper.FormatCnpj(infDps.toma.CNPJ),
+                        warnings,
+                        "CNPJ Tomador",
+                        "infNFSe.DPS.InfDPS.toma.CNPJ"),
+
+            ["{{TOMA_IM}}"] = DanfeFallback.OrDash(infDps.toma.IM),
+            ["{{TOMA_RAZAO}}"] = DanfeFallback.OrDash(
+                infDps.toma.xNome,
+                warnings,
+                "xNome Tomador",
+                "infNFSe.DPS.InfDPS.toma.xNome"),
+
+            ["{{TOMA_ENDERECO}}"] = DanfeFallback.OrDash(
+                Helper.BuildEndereco(infDps.toma.end),
+                warnings,
+                "Endereço Tomador",
+                "infNFSe.DPS.InfDPS.toma.end"),
+
+            ["{{TOMA_CEP}}"] = DanfeFallback.OrDash(
+                Helper.FormatCep(infDps.toma.end?.endNac?.CEP),
+                warnings,
+                "CEP Tomador",
+                "infNFSe.DPS.InfDPS.toma.end.endNac.CEP"),
+
+            ["{{TOMA_CMUN}}"] = ResolveMunicipioNomeComUf(
+                infDps.toma.end?.endNac?.cMun,
+                warnings,
+                "infNFSe.DPS.InfDPS.toma.end.endNac.cMun"),
+
+            ["{{TOMA_EMAIL}}"] = DanfeFallback.OrDash(
+                infDps.toma.email,
+                warnings,
+                "Email Tomador",
+                "infNFSe.DPS.InfDPS.toma.email"),
+
+            ["{{TOMA_FONE}}"] = DanfeFallback.OrDash(
+                Helper.FormatTelefone(infDps.toma.fone),
+                warnings,
+                "Fone Tomador",
+                "infNFSe.DPS.InfDPS.toma.fone")
+        };
+    }
+    private Dictionary<string, string> BuildIntermediarioMap(InfDPS infDps, DanfeWarningCollector warnings)
+    {
+        if (infDps.interm == null)
+            return new Dictionary<string, string>();
+
+        return new Dictionary<string, string>
+        {
+            ["{{INTER_CNPJ}}"] =
+                !string.IsNullOrEmpty(infDps.interm.CPF)
+                    ? DanfeFallback.OrDash(
+                        Helper.FormatCpf(infDps.interm.CPF),
+                        warnings,
+                        "CNPJ Intermediário",
+                        "infNFSe.DPS.InfDPS.interm.CPF")
+                    : DanfeFallback.OrDash(
+                        Helper.FormatCnpj(infDps.interm.CNPJ),
+                        warnings,
+                        "CNPJ Intermediário",
+                        "infNFSe.DPS.InfDPS.interm.CNPJ"),
+
+            ["{{INTER_IM}}"] = DanfeFallback.OrDash(infDps.interm.IM),
+
+            ["{{INTER_RAZAO}}"] = DanfeFallback.OrDash(
+                infDps.interm.xNome,
+                warnings,
+                "xNome Intermediário",
+                "infNFSe.DPS.InfDPS.interm.xNome"),
+
+            ["{{INTER_ENDERECO}}"] = DanfeFallback.OrDash(
+                Helper.BuildEndereco(infDps.interm.end),
+                warnings,
+                "Endereço Intermediário",
+                "infNFSe.DPS.InfDPS.interm.end"),
+
+            ["{{INTER_CEP}}"] = DanfeFallback.OrDash(
+                Helper.FormatCep(infDps.interm.end?.endNac?.CEP),
+                warnings,
+                "CEP Intermediário",
+                "infNFSe.DPS.InfDPS.interm.end.endNac.CEP"),
+
+            ["{{INTER_CMUN}}"] = ResolveMunicipioNomeComUf(
+                infDps.interm.end?.endNac?.cMun,
+                warnings,
+                "infNFSe.DPS.InfDPS.interm.end.endNac.cMun"),
+
+            ["{{INTER_EMAIL}}"] = DanfeFallback.OrDash(
+                infDps.interm.email,
+                warnings,
+                "Email Intermediário",
+                "infNFSe.DPS.InfDPS.interm.email"),
+
+            ["{{INTER_FONE}}"] = DanfeFallback.OrDash(
+                Helper.FormatTelefone(infDps.interm.fone),
+                warnings,
+                "Fone Intermediário",
+                "infNFSe.DPS.InfDPS.interm.fone")
+        };
+    }
+
+    private Dictionary<string, string> BuildTotaisTributosMap(InfDPS infDps, CultureInfo ptBR, DanfeWarningCollector warnings)
+    {
+        if (infDps.valores?.trib?.totTrib?.pTotTribSN != null && infDps.valores?.trib?.totTrib?.pTotTribSN != 0)
+            return new Dictionary<string, string>
+            {
+                // Totais tributos (Simples Nacional)
+                ["{{TOT_FED}}"] = "-",
+                ["{{TOT_EST}}"] = "-",
+                ["{{TOT_MUN}}"] = "-"
+            };
+
+        if (infDps.valores?.trib?.totTrib?.pTotTrib?.pTotTribFed != null)
+            return new Dictionary<string, string>
+            {
+                // Totais tributos (percentual)
+                ["{{TOT_FED}}"] = DanfeFallback.OrPercent(infDps.valores?.trib?.totTrib?.pTotTrib?.pTotTribFed, ptBR, warnings, "pTotTribFed", "infDps.valores.trib.totTrib.pTotTrib.pTotTribFed"),
+                ["{{TOT_EST}}"] = DanfeFallback.OrPercent(infDps.valores?.trib?.totTrib?.pTotTrib?.pTotTribEst, ptBR, warnings, "pTotTribEst", "infDps.valores.trib.totTrib.pTotTrib.pTotTribEst"),
+                ["{{TOT_MUN}}"] = DanfeFallback.OrPercent(infDps.valores?.trib?.totTrib?.pTotTrib?.pTotTribMun, ptBR, warnings, "pTotTribMun", "infDps.valores.trib.totTrib.pTotTrib.pTotTribMun"),
+            };
+
+        return new Dictionary<string, string>
+        {
+            // Totais tributos (valores)
+            ["{{TOT_FED}}"] = DanfeFallback.OrCurrency(infDps.valores?.trib?.totTrib?.vTotTrib?.vTotTribFed, ptBR, warnings, "vTotTribFed", "infDps.valores.trib.totTrib.vTotTrib.vTotTribFed"),
+            ["{{TOT_EST}}"] = DanfeFallback.OrCurrency(infDps.valores?.trib?.totTrib?.vTotTrib?.vTotTribEst, ptBR, warnings, "vTotTribEst", "infDps.valores.trib.totTrib.vTotTrib.vTotTribEst"),
+            ["{{TOT_MUN}}"] = DanfeFallback.OrCurrency(infDps.valores?.trib?.totTrib?.vTotTrib?.vTotTribMun, ptBR, warnings, "vTotTribMun", "infDps.valores.trib.totTrib.vTotTrib.vTotTribMun"),
+        };
+    }
     // Helper local: resolve município do tomador sem explodir e com warning
     private static string ResolveMunicipioNomeComUf(int? cMun, DanfeWarningCollector warnings, string path)
     {
