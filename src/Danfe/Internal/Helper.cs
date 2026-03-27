@@ -73,6 +73,9 @@ namespace Direction.NFSe.Danfe
 
                 if (!string.IsNullOrEmpty(serv.infoCompl.xInfComp))
                     sb.Append($"<b>Inf Cont:</b> {serv.infoCompl.xInfComp} | ");
+
+                if (!string.IsNullOrWhiteSpace(serv.infoCompl.docRef))
+                    sb.Append($"<b>Doc Ref:</b> {serv.infoCompl.docRef} | ");
             }
 
             if (serv.cServ.cNBS != 0)
