@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch GeraDanfe",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/GeraDanfe/bin/Debug/net10.0/GeraDanfe.dll",
+            "cwd": "${workspaceFolder}/src/GeraDanfe",
+            "stopAtEntry": false,
+            "console": "integratedTerminal"
+        }
+    ]
+}

@@ -83,6 +83,7 @@ File.WriteAllBytes("danfse.pdf", result.PdfBytes);
 ```csv
 2611606,Recife,-8.04666,-34.8771,1,26,2531,81,America/Sao_Paulo,Assets\Logos\logoRecife.png,Prefeitura do Recife<br>Secretaria de Finanças<br>faleconosco@recife.pe.gov.br
 ```
+- Se você usar o código do munícipio, por exemplo: 2611606.png, nesse caso não precisa modificar o arquivo de municípios. Esse arquivo terá precedência a opção anterior.
 
 ---
 

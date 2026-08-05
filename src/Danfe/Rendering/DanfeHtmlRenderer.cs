@@ -23,7 +23,11 @@ public sealed class DanfeHtmlRenderer
         _templatePath = _options.TemplatePath ?? Path.Combine(basePath, "Assets", "Templates", "Danfe.html");
     }
 
-    public (string Html, IReadOnlyList<DanfeWarning> Warnings) Render(NFSeSchema nfse, DanfeEnvironment environment, bool isCancelled = false)
+    public (string Html, IReadOnlyList<DanfeWarning> Warnings) RenderInternal(NFSeSchema nfse, DanfeEnvironment environment, DanfeStatus status)
+    {
+        return Render(nfse, environment, status);
+    }
+    public (string Html, IReadOnlyList<DanfeWarning> Warnings) Render(NFSeSchema nfse, DanfeEnvironment environment, DanfeStatus status)
     {
         if (nfse == null) throw new ArgumentNullException(nameof(nfse));
         if (nfse.infNFSe == null) throw new ArgumentException("NFSe.infNFSe não pode ser nulo", nameof(nfse));
@@ -114,7 +118,7 @@ public sealed class DanfeHtmlRenderer
         else if (municpioISSQN == null)
             warnings.MunicipioNotFound("infNFSe.cLocIncid");
 
-        var logoBase64 = Helper.GetLogo(Path.Combine(AppContext.BaseDirectory, municipioPrestador?.LogoPath ?? string.Empty));
+        var logoBase64 = GetLogoMunicipio(municipioPrestador);
 
         // Logo da nfse
         var logoNfse = _options.LogoNFSePath != null ? Helper.GetLogo(_options.LogoNFSePath) : Helper.GetLogo(Path.Combine(AppContext.BaseDirectory, "Assets", "Logos", "nfse.png"));
@@ -142,7 +146,8 @@ public sealed class DanfeHtmlRenderer
         decimal vTotalRetFed = (vIRRF ?? 0M) + (vCP ?? 0M) + (vCSLL ?? 0M);
         decimal vDebPisCofins = (vPIS ?? 0M) + (vCOFINS ?? 0M);
 
-        // Verifica ses a NFSe está cancelada
+        // Verifica se a NFSe está cancelada
+        var isCancelled = status == DanfeStatus.Cancelada;
         string canceladaDiv = isCancelled
             ? @"<div style=""
               position:absolute;
@@ -166,6 +171,31 @@ public sealed class DanfeHtmlRenderer
               </div>"
             : string.Empty;
 
+        // Verifica se a NFSe foi substituída e não cancelada
+        var isSubstituida = status == DanfeStatus.Substituida;
+        string substituidaDiv = isSubstituida
+            ? @"<div style=""
+              position:absolute;
+              top:50%;
+              left:50%;
+              display:inline-block;                 /* importante */
+              -webkit-transform: translate(-50%, -50%) rotate(-30deg);
+              transform: translate(-50%, -50%) rotate(-30deg);
+              -webkit-transform-origin: 50% 50%;
+              transform-origin: 50% 50%;
+              font-size:96px;
+              font-weight:800;
+              color: rgba(200,0,0,0.18);
+              border: 8px solid rgba(200,0,0,0.18);
+              padding: 20px 40px;
+              text-transform:uppercase;
+              z-index:9999;
+              pointer-events:none;
+              white-space:nowrap;"">
+                          SUBSTITUÍDA
+              </div>"
+            : string.Empty;
+
         bool hasTomador = infDps.toma != null;
         bool hasIntermediario = infDps.interm != null;
 
@@ -174,6 +204,8 @@ public sealed class DanfeHtmlRenderer
         {
             // Cancelada
             ["{{NFSE_CANCELADA_DIV}}"] = canceladaDiv,
+            // Substituída
+            ["{{NFSE_SUBSTITUIDA_DIV}}"] = substituidaDiv,
             // Fonts
             ["{{FONT_FAMILY}}"] = _options.FontFamily ?? "Verdana, Helvetica, sans-serif;",
             ["{{FONT_SIZE}}"] = _options.FontSize ?? "12px;",
@@ -236,12 +268,12 @@ public sealed class DanfeHtmlRenderer
             ["{{ISS_PROCESSO}}"] = DanfeFallback.OrDash(infDps.valores?.trib?.tribMun?.exigSusp?.nProcesso, warnings, "Número Processo Suspensão", "infNFSe.DPS.InfDPS.valores.trib.tribMun.exigSusp.nProcesso"),
             ["{{ISS_BENEFICIO}}"] = DanfeFallback.OrDash(infDps.valores?.trib?.tribMun?.BM?.nBM.ToString(), warnings, "Benefício Municipal", "infNFSe.DPS.InfDPS.valores.trib.tribMun.BM.nBM"),
             ["{{ISS_DESC_INCOND}}"] = DanfeFallback.OrCurrency(infDps.valores?.vDescCondIncond?.vDescIncond, ptBR, warnings, "vDescIncond", "infNFSe.valores.vDescCondIncond.vDescIncond"),
-            ["{{ISS_DEDUCOES}}"] = DanfeFallback.OrCurrency(infDps.valores?.vDedRed?.vDR, ptBR, warnings, "vDR", "infNFSe.valores.vDedRed.vDR"),
-            ["{{ISS_CALCULO}}"] = DanfeFallback.OrCurrency(infDps.valores?.trib?.tribMun?.BM?.vRedBCBM, ptBR, warnings, "vRedBCBM", "infNFSe.valores.trib.tribMun.BM.vRedBCBM"), //TO DO: verificar no futuro se Calculo do BM realmente se refere a esse campo
-            ["{{ISS_BC}}"] = (tpRetIssqn == 2 || opSimpNac == 1) ? vServico.ToString("C", ptBR) : "-",
-            ["{{ISS_ALIQ}}"] = (tpRetIssqn == 2 || opSimpNac == 1) ? DanfeFallback.OrPercent(vAliqAplic, ptBR, warnings, "pAliqAplic", "infNFSe.valores.pAliqAplic") : "-",
+            ["{{ISS_DEDUCOES}}"] = DanfeFallback.OrCurrency(inf.valores?.vCalcDR, ptBR, warnings, "vCalcDR", "nfse.infNFSe.valores.vCalcDR"),
+            ["{{ISS_CALCULO}}"] = DanfeFallback.OrCurrency(inf.valores?.vCalcBM, ptBR, warnings, "vCalcBM", "nfse.infNFSe.valores.vCalcBM"),
+            ["{{ISS_BC}}"] = DanfeFallback.OrCurrency(inf.valores?.vBC, ptBR, warnings, "vBC", "nfse.infNFSe.valores.vBC"),
+            ["{{ISS_ALIQ}}"] = DanfeFallback.OrPercent(vAliqAplic, ptBR, warnings, "pAliqAplic", "infNFSe.valores.pAliqAplic"),
             ["{{ISS_RETENCAO}}"] = GetDescricaoRetencao(tpRetIssqn),
-            ["{{ISS_APURADO}}"] = (tpRetIssqn == 2 || opSimpNac == 1) ? DanfeFallback.OrCurrency(vIssqn, ptBR, warnings, "vISSQN", "infNFSe.valores.vISSQN") : "-",
+            ["{{ISS_APURADO}}"] = DanfeFallback.OrCurrency(vIssqn, ptBR, warnings, "vISSQN", "infNFSe.valores.vISSQN"),
 
             // Tributação Federal
             ["{{FED_IRRF}}"] = DanfeFallback.OrCurrency(vIRRF, ptBR, warnings, "vIRRF", "infDps.valores.trib.tribFed.vRetIRRF"),
@@ -287,7 +319,8 @@ public sealed class DanfeHtmlRenderer
                 kv.Key == "{{SERV_DESC_HTML}}" ||
                 kv.Key == "{{INF_COMPLEMENTARES}}" ||
                 kv.Key == "{{LOGO_NAME}}" ||
-                kv.Key == "{{NFSE_CANCELADA_DIV}}";
+                kv.Key == "{{NFSE_CANCELADA_DIV}}" ||
+                kv.Key == "{{NFSE_SUBSTITUIDA_DIV}}";
 
             string value = isRawHtml ? kv.Value : Helper.HtmlEncode(kv.Value);
             template = template.Replace(kv.Key, value ?? string.Empty);
@@ -304,6 +337,15 @@ public sealed class DanfeHtmlRenderer
         }
 
         return (template, warnings.Warnings);
+    }
+
+    private string? GetLogoMunicipio(MunicipiosIbge.Municipio? municipio)
+    {
+        var imageCodigoIbge = Path.Combine(AppContext.BaseDirectory, "Assets", "Logos", $"{municipio?.CodigoIbge}.png");
+        if (File.Exists(imageCodigoIbge))
+            return Helper.GetLogo(imageCodigoIbge);
+
+        return Helper.GetLogo(Path.Combine(AppContext.BaseDirectory, municipio?.LogoPath ?? string.Empty));
     }
     private Dictionary<string, string> BuildTomadorMap(InfDPS infDps, DanfeWarningCollector warnings)
     {
