@@ -53,7 +53,7 @@ public sealed class DanfeService : IDanfeService
         return Generate(nfse, environment, status);
     }
     [Obsolete("Use Generate(string, DanfeEnvironment, DanfeStatus).")]
-    public DanfeResult Generate(string xml, DanfeEnvironment environment, bool isCancelled = false)
+    public DanfeResult Generate(string xml, DanfeEnvironment environment, bool isCancelled)
     {
         using var sr = new StringReader(xml);
         var nfse = Deserialize(sr);
@@ -67,7 +67,7 @@ public sealed class DanfeService : IDanfeService
         return Generate(nfse, environment, status);
     }
     [Obsolete("Use Generate(Stream, DanfeEnvironment, DanfeStatus).")]
-    public DanfeResult Generate(Stream xmlStream, DanfeEnvironment environment, bool isCancelled = false)
+    public DanfeResult Generate(Stream xmlStream, DanfeEnvironment environment, bool isCancelled)
     {
         using var sr = new StreamReader(xmlStream);
         var nfse = Deserialize(sr);

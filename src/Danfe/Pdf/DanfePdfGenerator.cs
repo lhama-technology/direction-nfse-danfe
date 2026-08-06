@@ -37,7 +37,9 @@ public sealed class DanfePdfGenerator
                     {
                         DefaultEncoding = "utf-8",
                         LoadImages = true,
-                        Background = true
+                        Background = true,
+                        EnableIntelligentShrinking = false,
+                        PrintMediaType = true
                     }
                 }
             }
